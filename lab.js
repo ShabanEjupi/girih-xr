@@ -4,6 +4,7 @@
 // diffraction alone, the way crystallographers solve real crystals.
 import * as THREE from './vendor/three.module.js';
 import { pentagrid, gammas, flips, hankin, samples, similarity, fingerprint, MISSIONS, SOLVED } from './quasi.js';
+import { mrSupported, requestMR, placer } from './mr.js';
 
 const DEG = Math.PI / 180, R_TILES = 5.6, R_PTS = 5, WIN = 3, KMAX = 1.6, RT = 160, S = 0.035;
 const PINCH_ON = 0.018, PINCH_OFF = 0.035;
@@ -17,7 +18,8 @@ const T = {
         sub: 'Penrose tiling from de Bruijn\'s pentagrid (a slice of a 5D lattice) · girih lines by Hankin\'s polygons-in-contact method · diffraction |Σ e^(−2πi k·r)|² computed live, ten-fold like real quasicrystals.',
         mouse: 'Drag the tiling to slide the 5D cut. θ bends the girih lines, φ turns the crystal (wheel and Q / E too).',
         hands: 'Right hand: pinch and drag to slide the 5D cut. Left hand: pinch, twist to turn the crystal, raise or lower to bend the lines.',
-        noxr: 'Hand tracking needs a VR headset; everything works here with a mouse or touch.', match: 'match' },
+        noxr: 'Hand tracking needs a VR headset; everything works here with a mouse or touch.', match: 'match',
+        mr: 'On my table', place: 'Look at a table or a wall, then pinch: the crystal is set down there.' },
   sq: { mission: 'Misioni', of: 'nga', free: 'Laborator i lirë', target: 'Difraksioni i synuar', yours: 'Kristali yt', enter: 'Hyr në VR', lang: 'English', back: 'Enigma',
         m0: 'Rrotullo kristalin derisa difraksioni i tij të përputhet me të synuarin.',
         m1: 'Ndrysho këndin e takimit të vijave girih derisa majat të përputhen.',
@@ -27,7 +29,8 @@ const T = {
         sub: 'Pllakëzimi Penrose nga pentarrjeta e de Bruijn-it (prerje e një rrjete 5D) · vijat girih me metodën e Hankin-it · difraksioni |Σ e^(−2πi k·r)|² llogaritet drejtpërdrejt, dhjetëfish si te kuazikristalet e vërteta.',
         mouse: 'Tërhiq pllakat për të rrëshqitur prerjen 5D. θ përkul vijat girih, φ rrotullon kristalin (edhe rrota dhe Q / E).',
         hands: 'Dora e djathtë: kape dhe tërhiq për të rrëshqitur prerjen 5D. E majta: kape, rrotullo kyçin për drejtimin, ngrite ose ule për të përkulur vijat.',
-        noxr: 'Duart kërkojnë syze VR; këtu gjithçka punon me mi ose prekje.', match: 'përputhje' },
+        noxr: 'Duart kërkojnë syze VR; këtu gjithçka punon me mi ose prekje.', match: 'përputhje',
+        mr: 'Mbi tavolinë', place: 'Shiko një tavolinë ose mur dhe kape me dy gishta: kristali vendoset aty.' },
 };
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem('girih-lab:' + k)) ?? d; } catch { return d; } },
                 set(k, v) { try { localStorage.setItem('girih-lab:' + k, JSON.stringify(v)); } catch {} } };
@@ -35,14 +38,17 @@ let lang = store.get('lang', (navigator.language || '').startsWith('sq') ? 'sq' 
 const t = k => T[lang][k];
 
 // ---------- scene ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });   // alpha: passthrough shows through in MR
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0b1412);
 const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.01, 80);
-const board = new THREE.Group(), crystal = new THREE.Group(); board.add(crystal); scene.add(board);
+// mount = where the crystal sits in the room (identity on screen and in VR, the pinned table or wall in MR).
+const mount = new THREE.Group(), board = new THREE.Group(), crystal = new THREE.Group(); board.add(crystal); mount.add(board); scene.add(mount);
+const place = placer(scene, mount);
+let mr = false;
 const disc = new THREE.Mesh(new THREE.CircleGeometry(R_TILES + 0.9, 96), new THREE.MeshBasicMaterial({ color: 0x15231f }));
 disc.position.z = -0.03; board.add(disc);
 
@@ -211,7 +217,7 @@ function ui() {
   hud.querySelector('.sub').textContent = (vr ? '' : (matchMedia('(pointer: coarse)').matches ? '' : t('mouse') + ' ')) + t('sub');
   $('lt').hidden = !free().includes('theta'); $('lp').hidden = !free().includes('phi');
   $('theta').value = (theta / DEG).toFixed(1); $('phi').value = (phi / DEG).toFixed(2);
-  $('enter').textContent = t('enter'); $('lang').textContent = t('lang'); $('back').textContent = t('back');
+  $('enter').textContent = t('enter'); $('mr').textContent = t('mr'); $('lang').textContent = t('lang'); $('back').textContent = t('back');
   $('next').textContent = m < MISSIONS.length ? t('free') : `${t('mission')} 1`;
   write(scrTarget, t('target')); write(scrLive, t('yours'));
   const c = canvas.getContext('2d'); c.clearRect(0, 0, 1024, 300);
@@ -219,7 +225,7 @@ function ui() {
   c.fillStyle = '#f4efe2'; c.font = '600 48px system-ui, sans-serif'; c.fillText(head + (MISSIONS[m] ? ` · ${Math.round(pct * 100)}%` : ''), 36, 72);
   c.fillStyle = 'rgba(244,239,226,.15)'; c.fillRect(36, 96, 952, 12); c.fillStyle = '#f2d47a'; c.fillRect(36, 96, 952 * pct, 12);
   c.font = '34px system-ui, sans-serif'; c.fillStyle = '#d9c98f';
-  wrap(c, msg || (vr ? t('hands') : lead), 36, 158, 952, 42);
+  wrap(c, msg || (mr && !place.pinned ? t('place') : vr ? t('hands') : lead), 36, 158, 952, 42);
   panelTex.needsUpdate = true;
 }
 function wrap(c, s, x, y, w, lh) {
@@ -289,11 +295,27 @@ $('enter').onclick = async () => {
   vrLayout(); panel.visible = true; panel.position.set(0, 0.33, -0.82); ui();
   session.addEventListener('end', () => { layout(); panel.visible = false; tips.flat().forEach(s => s.visible = false); ui(); });
 };
+$('mr').onclick = async () => {
+  const session = await requestMR();
+  renderer.xr.setReferenceSpaceType('local');
+  await renderer.xr.setSession(session);
+  mr = true; scene.background = null;
+  vrLayout(); board.position.set(0, 0, 0.004); board.rotation.set(0, 0, 0);   // the screens float as in VR; the crystal goes on the surface
+  panel.visible = true; panel.position.set(0, 0.33, -0.82);
+  await place.start(session, () => { mount.position.set(0, -0.34, -0.48); mount.rotation.set(-Math.PI / 2 + 0.75, 0, 0); }, ui);
+  ui();
+  session.addEventListener('end', () => {
+    mr = false; place.stop(); scene.background = new THREE.Color(0x0b1412);
+    layout(); panel.visible = false; tips.flat().forEach(s => s.visible = false); ui();
+  });
+};
+mrSupported().then(ok => { $('mr').hidden = !ok; });
 
 // ---------- loop ----------
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if (!renderer.xr.isPresenting) layout(); });
 renderer.setAnimationLoop((time, frame) => {
-  if (frame) handFrame(frame, renderer.xr.getReferenceSpace());
+  if (frame && mr) place.frame(frame, renderer.xr.getReferenceSpace());
+  if (frame && (!mr || place.pinned)) handFrame(frame, renderer.xr.getReferenceSpace());
   if (live && time - liveAt > 90) { live(); live = null; liveAt = time; }
   if (flash.size) {                                                 // flipped rhombs glow gold, then fade in 0.9 s
     const col = tileGeo.getAttribute('color'), tl = tileGeo.userData.tiles, now = performance.now();
@@ -312,5 +334,6 @@ renderer.setAnimationLoop((time, frame) => {
 document.documentElement.lang = lang;
 start(m);
 window.lab = { get mission() { return m; }, get score() { return score; }, get theta() { return theta / DEG; }, get phi() { return phi / DEG; },
-               get p() { return p; }, get flipping() { return flash.size; }, set(th, ph) { if (th != null) nudge('theta', th * DEG - theta); if (ph != null) nudge('phi', ph * DEG - phi); },
+               get p() { return p; }, get mr() { return mr; }, get pinned() { return place.pinned; },
+               get facing() { const q = board.getWorldQuaternion(new THREE.Quaternion()); return { at: board.getWorldPosition(new THREE.Vector3()).toArray(), normal: new THREE.Vector3(0, 0, 1).applyQuaternion(q).toArray() }; }, get flipping() { return flash.size; }, set(th, ph) { if (th != null) nudge('theta', th * DEG - theta); if (ph != null) nudge('phi', ph * DEG - phi); },
                slide(dx, dy) { p = [p[0] + dx, p[1] + dy]; rebuild(false); }, answer: () => MISSIONS[m] && { theta: MISSIONS[m].theta / DEG, phi: MISSIONS[m].phi / DEG } };

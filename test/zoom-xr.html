@@ -1,22 +1,12 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><title>Girih all the way down — IWER test harness</title></head>
 <body>
-<!-- Test only: Meta's Immersive Web Emulation Runtime stands in for a Quest 3 with hand tracking. ?wall=1 adds a stand-in
-     room: one wall 1.2 m ahead, so hit-test rays land on a real surface (IWER asks its environment module for hits). -->
+<!-- Test only: Meta's Immersive Web Emulation Runtime stands in for a Quest 3 with hand tracking; ?wall=1 adds a stand-in room. -->
 <script type="module">
   import { XRDevice, metaQuest3 } from './iwer.module.js';
+  import { WallSEM } from './wall-sem.js';
   const d = new XRDevice(metaQuest3);
-  if (new URLSearchParams(location.search).has('wall')) d.installSEM(class {
-    environmentCanvas = document.createElement('canvas'); trackedPlanes = new Set(); trackedMeshes = new Set();
-    render() {}
-    // ray = column-major matrix of the ray; it starts at the translation and looks down its -Z.
-    computeHitTestResults(m) {
-      const o = [m[12], m[13], m[14]], dir = [-m[8], -m[9], -m[10]], WALL = -1.2;
-      if (dir[2] >= -1e-6) return [];
-      const k = (WALL - o[2]) / dir[2], x = o[0] + k * dir[0], y = o[1] + k * dir[1];
-      return [new Float32Array([1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, x, y, WALL, 1])];   // +Y = the wall's normal
-    }
-  });
+  if (new URLSearchParams(location.search).has('wall')) d.installSEM(WallSEM);
   d.installRuntime({ forceInstall: true });   // Chromium ships a (headset-less) navigator.xr
   d.primaryInputMode = 'hand';
   window.xrDevice = d;

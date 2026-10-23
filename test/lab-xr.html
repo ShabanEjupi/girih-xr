@@ -4,7 +4,9 @@
 <!-- Test only: Meta's Immersive Web Emulation Runtime stands in for a Quest with hand tracking, then the real page loads. -->
 <script type="module">
   import { XRDevice, metaQuest3 } from './iwer.module.js';
+  import { WallSEM } from './wall-sem.js';
   const d = new XRDevice(metaQuest3);
+  if (new URLSearchParams(location.search).has('wall')) d.installSEM(WallSEM);   // a stand-in room for MR
   d.installRuntime({ forceInstall: true });   // Chromium ships a (headset-less) navigator.xr
   d.primaryInputMode = 'hand';
   window.xrDevice = d;
