@@ -80,7 +80,7 @@ function renderDiffraction(points, phi, rt) {
     ptsData.set([x, y, w, 0], i * 4); W += w * w;
   }
   ptsTex.needsUpdate = true;
-  Object.assign(diffMat.uniforms, { count: { value: n }, phi: { value: phi }, norm: { value: 1 / W }, pts: { value: ptsTex }, kmax: { value: KMAX * 1.4 } });
+  const u = diffMat.uniforms; u.count.value = n; u.phi.value = phi; u.norm.value = 1 / W;
   const xr = renderer.xr.enabled; renderer.xr.enabled = false;
   renderer.setRenderTarget(rt); renderer.render(quadScene, quadCam); renderer.setRenderTarget(null);
   renderer.xr.enabled = xr;
@@ -96,6 +96,9 @@ const scrTarget = screen(rtTarget), scrLive = screen(rtLive);
 const write = (scr, s) => { const c = scr.userData.c.getContext('2d'); c.clearRect(0, 0, 512, 64); c.fillStyle = '#d9c98f'; c.font = '600 34px system-ui, sans-serif'; c.textAlign = 'center'; c.fillText(s, 256, 44); scr.userData.tex.needsUpdate = true; };
 
 // ---------- state ----------
+// The live diffraction is the costly part (thousands of waves per pixel): while a hand drags, it is redrawn at most
+// every 90 ms, from the latest crystal.
+let live = null, liveAt = 0;
 let m = Math.min(store.get('mission', 0), MISSIONS.length), theta, phi, p = [0, 0], prev = [], flash = new Map(), score = 0, msg = '', target = null;
 const free = () => m >= MISSIONS.length ? ['theta', 'phi'] : MISSIONS[m].free;
 const need = () => MISSIONS[m]?.need ?? SOLVED;
@@ -129,7 +132,7 @@ function rebuild(scoreToo) {
   }
   strapGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
   crystal.rotation.z = phi;
-  renderDiffraction(samples(hankin(T0.filter(tl => Math.hypot(...tl.c) <= R_PTS), theta)), phi, rtLive);
+  live = () => renderDiffraction(samples(hankin(T0.filter(tl => Math.hypot(...tl.c) <= R_PTS), theta)), phi, rtLive);
   if (scoreToo && MISSIONS[m]) {
     score = similarity(target, fingerprint(theta, phi));
     if (score >= need()) solved();
@@ -291,6 +294,7 @@ $('enter').onclick = async () => {
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if (!renderer.xr.isPresenting) layout(); });
 renderer.setAnimationLoop((time, frame) => {
   if (frame) handFrame(frame, renderer.xr.getReferenceSpace());
+  if (live && time - liveAt > 90) { live(); live = null; liveAt = time; }
   if (flash.size) {                                                 // flipped rhombs glow gold, then fade in 0.9 s
     const col = tileGeo.getAttribute('color'), tl = tileGeo.userData.tiles, now = performance.now();
     tl.forEach((x, i) => {
