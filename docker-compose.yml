@@ -3,10 +3,19 @@ services:
     image: nginx:1.27-alpine
     container_name: girih-xr
     restart: always
-    network_mode: bridge
     ports:
       - "127.0.0.1:8322:80"
     volumes:
       - ./site:/usr/share/nginx/html:ro
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
     mem_limit: 64m
+    depends_on: [relay]
+  # Lab for two: the room relay (relay.mjs), reached only through nginx at /room/.
+  relay:
+    image: node:22-alpine
+    container_name: girih-xr-relay
+    restart: always
+    command: ["node", "/app/relay.mjs"]
+    volumes:
+      - ./relay.mjs:/app/relay.mjs:ro
+    mem_limit: 96m

@@ -5,6 +5,7 @@
 import * as THREE from './vendor/three.module.js';
 import { pentagrid, gammas, flips, hankin, samples, similarity, fingerprint, MISSIONS, SOLVED } from './quasi.js';
 import { mrSupported, requestMR, placer } from './mr.js';
+import { together, roomLink } from './together.js';
 
 const DEG = Math.PI / 180, R_TILES = 5.6, R_PTS = 5, WIN = 3, KMAX = 1.6, RT = 160, S = 0.035;
 const PINCH_ON = 0.018, PINCH_OFF = 0.035;
@@ -19,7 +20,8 @@ const T = {
         mouse: 'Drag the tiling to slide the 5D cut. θ bends the girih lines, φ turns the crystal (wheel and Q / E too).',
         hands: 'Right hand: pinch and drag to slide the 5D cut. Left hand: pinch, twist to turn the crystal, raise or lower to bend the lines.',
         noxr: 'Hand tracking needs a VR headset; everything works here with a mouse or touch.', match: 'match',
-        mr: 'On my table', place: 'Look at a table or a wall, then pinch: the crystal is set down there.' },
+        mr: 'On my table', place: 'Look at a table or a wall, then pinch: the crystal is set down there.',
+        invite: 'Lab for two', copy: 'Copy the link', here: 'here', copied: 'Link copied — send it to the other person.' },
   sq: { mission: 'Misioni', of: 'nga', free: 'Laborator i lirë', target: 'Difraksioni i synuar', yours: 'Kristali yt', enter: 'Hyr në VR', lang: 'English', back: 'Enigma',
         m0: 'Rrotullo kristalin derisa difraksioni i tij të përputhet me të synuarin.',
         m1: 'Ndrysho këndin e takimit të vijave girih derisa majat të përputhen.',
@@ -30,7 +32,8 @@ const T = {
         mouse: 'Tërhiq pllakat për të rrëshqitur prerjen 5D. θ përkul vijat girih, φ rrotullon kristalin (edhe rrota dhe Q / E).',
         hands: 'Dora e djathtë: kape dhe tërhiq për të rrëshqitur prerjen 5D. E majta: kape, rrotullo kyçin për drejtimin, ngrite ose ule për të përkulur vijat.',
         noxr: 'Duart kërkojnë syze VR; këtu gjithçka punon me mi ose prekje.', match: 'përputhje',
-        mr: 'Mbi tavolinë', place: 'Shiko një tavolinë ose mur dhe kape me dy gishta: kristali vendoset aty.' },
+        mr: 'Mbi tavolinë', place: 'Shiko një tavolinë ose mur dhe kape me dy gishta: kristali vendoset aty.',
+        invite: 'Laborator për dy', copy: 'Kopjo lidhjen', here: 'këtu', copied: 'Lidhja u kopjua — dërgoja personit tjetër.' },
 };
 const store = { get(k, d) { try { return JSON.parse(localStorage.getItem('girih-lab:' + k)) ?? d; } catch { return d; } },
                 set(k, v) { try { localStorage.setItem('girih-lab:' + k, JSON.stringify(v)); } catch {} } };
@@ -104,7 +107,7 @@ const write = (scr, s) => { const c = scr.userData.c.getContext('2d'); c.clearRe
 // ---------- state ----------
 // The live diffraction is the costly part (thousands of waves per pixel): while a hand drags, it is redrawn at most
 // every 90 ms, from the latest crystal.
-let live = null, liveAt = 0;
+let live = null, liveAt = 0, duo = null, peers = 1;
 let m = Math.min(store.get('mission', 0), MISSIONS.length), theta, phi, p = [0, 0], prev = [], flash = new Map(), score = 0, msg = '', target = null;
 const free = () => m >= MISSIONS.length ? ['theta', 'phi'] : MISSIONS[m].free;
 const need = () => MISSIONS[m]?.need ?? SOLVED;
@@ -138,6 +141,8 @@ function rebuild(scoreToo) {
   }
   strapGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
   crystal.rotation.z = phi;
+  // While a mission is locked after a solve (m past the end), only the crystal is shared, not the lock.
+  duo?.local(m <= MISSIONS.length ? { mission: m, p, theta, phi } : { p, theta, phi });
   live = () => renderDiffraction(samples(hankin(T0.filter(tl => Math.hypot(...tl.c) <= R_PTS), theta)), phi, rtLive);
   if (scoreToo && MISSIONS[m]) {
     score = similarity(target, fingerprint(theta, phi));
@@ -217,6 +222,7 @@ function ui() {
   hud.querySelector('.sub').textContent = (vr ? '' : (matchMedia('(pointer: coarse)').matches ? '' : t('mouse') + ' ')) + t('sub');
   $('lt').hidden = !free().includes('theta'); $('lp').hidden = !free().includes('phi');
   $('theta').value = (theta / DEG).toFixed(1); $('phi').value = (phi / DEG).toFixed(2);
+  $('duo').textContent = duo ? `${t('copy')} · ${peers} ${t('here')}` : t('invite');
   $('enter').textContent = t('enter'); $('mr').textContent = t('mr'); $('lang').textContent = t('lang'); $('back').textContent = t('back');
   $('next').textContent = m < MISSIONS.length ? t('free') : `${t('mission')} 1`;
   write(scrTarget, t('target')); write(scrLive, t('yours'));
@@ -245,6 +251,14 @@ el.addEventListener('pointermove', e => {
   rebuild(false);
 });
 el.addEventListener('pointerup', () => { drag = null; });
+// With someone else in the lab, the mouse shows as a fingertip on their crystal.
+const ray = new THREE.Raycaster();
+el.addEventListener('pointermove', e => {
+  if (!duo || renderer.xr.isPresenting) return;
+  ray.setFromCamera(new THREE.Vector2(e.clientX / innerWidth * 2 - 1, 1 - e.clientY / innerHeight * 2), camera);
+  const hit = ray.intersectObject(disc)[0];
+  if (hit) { const q = board.worldToLocal(hit.point); duo.hands([[q.x, q.y]]); }
+});
 $('theta').oninput = e => nudge('theta', e.target.value * DEG - theta);
 $('phi').oninput = e => nudge('phi', e.target.value * DEG - phi);
 addEventListener('wheel', e => { e.preventDefault(); nudge('theta', -Math.sign(e.deltaY) * 0.5 * DEG); }, { passive: false });
@@ -267,12 +281,14 @@ function heading(frame, hand, ref) {
 }
 function handFrame(frame, ref) {
   let i = 0;
+  const mine = [];
   for (const src of renderer.xr.getSession().inputSources) {
     if (!src.hand || i > 1) continue;
     const h = hands[src.handedness === 'left' ? 'left' : 'right'], [mt, mi] = tips[i++];
     const th = frame.getJointPose(src.hand.get('thumb-tip'), ref), ix = frame.getJointPose(src.hand.get('index-finger-tip'), ref);
     if (!th || !ix) { mt.visible = mi.visible = false; continue; }
     const pt = v3(th), pi = v3(ix); mt.position.copy(pt); mi.position.copy(pi); mt.visible = mi.visible = true;
+    for (const q of [pt, pi]) { const b = board.worldToLocal(q.clone()); mine.push([b.x, b.y]); }
     const was = h.pinch; h.pinch = pt.distanceTo(pi) < (was ? PINCH_OFF : PINCH_ON);
     mt.material.color.set(h.pinch ? 0xf2d47a : 0xf4efe2);
     const mid = pt.clone().add(pi).multiplyScalar(0.5), local = board.worldToLocal(mid.clone());
@@ -286,7 +302,26 @@ function handFrame(frame, ref) {
       const dy = mid.y - h.wy; if (Math.abs(dy) > 0.004) { nudge('theta', dy * 100 * DEG); h.wy = mid.y; }   // 1 cm = 1°
     }
   }
+  if (duo && mine.length) duo.hands(mine);
 }
+
+// ---------- lab for two ----------
+// The other person's fingertips, on the board itself: they land on the same tiles they touch at their end.
+const ghosts = new Map();   // peer → { dots, at }
+function showHands(from, pts) {
+  let g = ghosts.get(from);
+  if (!g) {
+    g = { dots: [0, 1, 2, 3].map(() => { const d = new THREE.Mesh(new THREE.SphereGeometry(0.17, 12, 8), new THREE.MeshBasicMaterial({ color: 0x7fd1c7 })); d.visible = false; board.add(d); return d; }), at: 0 };
+    ghosts.set(from, g);
+  }
+  g.at = performance.now();
+  g.dots.forEach((d, i) => { const q = pts[i]; d.visible = !!q && q.every(Number.isFinite); if (d.visible) d.position.set(q[0], q[1], 0.12); });
+}
+$('duo').onclick = async () => {
+  if (!duo) { location.href = roomLink(); return; }
+  try { await navigator.clipboard.writeText(location.href); msg = t('copied'); } catch { msg = location.href; }
+  ui(); setTimeout(() => { msg = ''; ui(); }, 4000);
+};
 $('enter').onclick = async () => {
   if (!navigator.xr || !(await navigator.xr.isSessionSupported('immersive-vr').catch(() => false))) { msg = t('noxr'); return ui(); }
   const session = await navigator.xr.requestSession('immersive-vr', { optionalFeatures: ['hand-tracking', 'local-floor'] });
@@ -317,6 +352,7 @@ renderer.setAnimationLoop((time, frame) => {
   if (frame && mr) place.frame(frame, renderer.xr.getReferenceSpace());
   if (frame && (!mr || place.pinned)) handFrame(frame, renderer.xr.getReferenceSpace());
   if (live && time - liveAt > 90) { live(); live = null; liveAt = time; }
+  for (const g of ghosts.values()) if (performance.now() - g.at > 2000) g.dots.forEach(d => (d.visible = false));   // they stopped moving
   if (flash.size) {                                                 // flipped rhombs glow gold, then fade in 0.9 s
     const col = tileGeo.getAttribute('color'), tl = tileGeo.userData.tiles, now = performance.now();
     tl.forEach((x, i) => {
@@ -332,8 +368,20 @@ renderer.setAnimationLoop((time, frame) => {
 });
 
 document.documentElement.lang = lang;
+duo = together({
+  current: () => ({ mission: Math.min(m, MISSIONS.length), p, theta, phi }),
+  apply: v => {
+    if (v.mission != null && v.mission !== m) start(v.mission);
+    if (v.p) p = v.p; if (v.theta != null) theta = v.theta; if (v.phi != null) phi = v.phi;
+    rebuild(true);
+  },
+  onPeers: n => { peers = n; ui(); },
+  onHands: showHands,
+});
 start(m);
 window.lab = { get mission() { return m; }, get score() { return score; }, get theta() { return theta / DEG; }, get phi() { return phi / DEG; },
-               get p() { return p; }, get mr() { return mr; }, get pinned() { return place.pinned; },
+               get p() { return p; }, get mr() { return mr; }, get peers() { return peers; },
+               discBox() { const b = new THREE.Box3().setFromObject(disc), q = [b.min, b.max].map(v => v.clone().project(camera)); return [(q[0].x + 1) / 2 * innerWidth, (1 - q[1].y) / 2 * innerHeight, (q[1].x + 1) / 2 * innerWidth, (1 - q[0].y) / 2 * innerHeight]; },
+               get ghosts() { return [...ghosts.values()].flatMap(g => g.dots).filter(d => d.visible).length; }, get pinned() { return place.pinned; },
                get facing() { const q = board.getWorldQuaternion(new THREE.Quaternion()); return { at: board.getWorldPosition(new THREE.Vector3()).toArray(), normal: new THREE.Vector3(0, 0, 1).applyQuaternion(q).toArray() }; }, get flipping() { return flash.size; }, set(th, ph) { if (th != null) nudge('theta', th * DEG - theta); if (ph != null) nudge('phi', ph * DEG - phi); },
                slide(dx, dy) { p = [p[0] + dx, p[1] + dy]; rebuild(false); }, answer: () => MISSIONS[m] && { theta: MISSIONS[m].theta / DEG, phi: MISSIONS[m].phi / DEG } };
