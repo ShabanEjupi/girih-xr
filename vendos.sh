@@ -5,7 +5,7 @@ SRC=/mnt/data/workspace/girih-xr
 DST=/home/opc/apps/girih-xr
 sudo docker run --rm -v "$SRC":/s:ro -w /s node:22-slim node test/girih.test.mjs >/dev/null
 mkdir -p "$DST/site/vendor"
-cp "$SRC"/docker-compose.yml "$DST"/
+cp "$SRC"/docker-compose.yml "$SRC"/nginx.conf "$DST"/
 cp "$SRC"/index.html "$SRC"/app.js "$SRC"/girih.js "$DST"/site/
 cp "$SRC"/vendor/three.module.js "$DST"/site/vendor/
 cd "$DST" && sudo docker compose up -d
