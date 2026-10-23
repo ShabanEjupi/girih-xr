@@ -2,7 +2,7 @@
 
 **A seated, hands-only puzzle of Islamic geometric tiles, for Meta Quest in the browser (WebXR).**
 
-Live: https://girih.spacecode.tech · Built for the Meta Connect 2026 VR Start developer competition.
+Live: https://girih-xr.spacecode.tech · Built for the Meta Connect 2026 VR Start developer competition.
 
 Girih tiles are the five shapes medieval craftsmen used to lay out the star patterns on mosques and madrasas: a decagon, a pentagon, a rhombus, a bowtie and an elongated hexagon. Every edge has the same length and every angle is a multiple of 36°, so the tiles fit together in endless ways, and a line drawn through their edge midpoints becomes one continuous star pattern.
 
