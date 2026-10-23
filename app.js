@@ -87,6 +87,8 @@ function build(n, filled = []) {
   for (const s of slots) if (s.filled) { const p = pieces.find(p => p.userData.kind === s.kind && p.userData.placed < 0); if (p) settle(p, s, true); }
   started = performance.now(); pausedTotal = 0;
   ui();
+  // Reloaded during the short pause after finishing a pattern: finish it again, which opens the next one.
+  if (slots.length && slots.every(s => s.filled)) complete();
 }
 const deg = m => ((m.rotation.z * 180 / Math.PI) % 360 + 360) % 360;
 function settle(p, s, quiet) {
@@ -98,6 +100,8 @@ function release(p) {
   const { kind } = p.userData;
   const s = slots.find(s => !s.filled && fits(kind, p.position.x, p.position.y, deg(p), s));
   if (s) return settle(p, s);
+  // Dropped off the table (out of reach when seated): it slides back to its place in the tray.
+  if (Math.hypot(p.position.x, p.position.y) > 6.8) p.position.copy(p.userData.home);
   p.scale.setScalar(kind === 'decagon' ? 0.62 : 0.78);
   p.rotation.z = Math.round(deg(p) / 36) * 36 * Math.PI / 180;
 }
