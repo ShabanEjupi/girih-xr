@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Deploy: run ON the Ampere host. The repo is the source; /home/opc/apps/girih-xr/site is a copy of the public files only.
+set -euo pipefail
+SRC=/mnt/data/workspace/girih-xr
+DST=/home/opc/apps/girih-xr
+sudo docker run --rm -v "$SRC":/s:ro -w /s node:22-slim node test/girih.test.mjs >/dev/null
+mkdir -p "$DST/site/vendor"
+cp "$SRC"/docker-compose.yml "$DST"/
+cp "$SRC"/index.html "$SRC"/app.js "$SRC"/girih.js "$DST"/site/
+cp "$SRC"/vendor/three.module.js "$DST"/site/vendor/
+cd "$DST" && sudo docker compose up -d
+for i in $(seq 15); do curl -fs -o /dev/null http://127.0.0.1:8322/ && exit 0; sleep 1; done
+echo "health failed"; exit 1

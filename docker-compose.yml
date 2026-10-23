@@ -1,0 +1,11 @@
+services:
+  girih-xr:
+    image: nginx:1.27-alpine
+    container_name: girih-xr
+    restart: always
+    network_mode: bridge
+    ports:
+      - "127.0.0.1:8322:80"
+    volumes:
+      - ./site:/usr/share/nginx/html:ro
+    mem_limit: 64m

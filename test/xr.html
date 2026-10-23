@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Girih XR — IWER test harness</title></head>
+<body>
+<!-- Test only: Meta's Immersive Web Emulation Runtime stands in for a Quest with hand tracking, then the real page loads. -->
+<script type="module">
+  import { XRDevice, metaQuest3 } from './iwer.module.js';
+  const d = new XRDevice(metaQuest3);
+  d.installRuntime({ forceInstall: true });   // Chromium ships a (headset-less) navigator.xr
+  d.primaryInputMode = 'hand';
+  window.xrDevice = d;
+  const html = await (await fetch('../index.html')).text();
+  document.body.innerHTML = html.match(/<body>([\s\S]*)<script/)[1];
+  await import('../app.js');
+</script>
+</body></html>

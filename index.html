@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Girih XR</title>
+<meta name="description" content="Girih XR: a seated, hands-only puzzle of Islamic geometric tiles for Meta Quest (WebXR). Pinch, turn your wrist, complete the pattern.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l12 9-4.5 15h-15L4 11z' fill='%23c9a227'/%3E%3C/svg%3E">
+<style>
+  :root { --bg: #10201c; --ink: #f4efe2; --muted: #b9c7bf; --gold: #d9c98f; --line: rgba(244,239,226,.18); }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; touch-action: none; }
+  canvas { display: block; }
+  #hud { position: fixed; inset: 0 0 auto 0; padding: max(12px, env(safe-area-inset-top)) 16px 0; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+  .top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .brand { font-weight: 650; letter-spacing: .2px; display: flex; align-items: center; gap: 8px; }
+  .brand i { width: 14px; height: 14px; background: #c9a227; transform: rotate(18deg); clip-path: polygon(50% 0, 100% 38%, 82% 100%, 18% 100%, 0 38%); }
+  .lvl, .left { color: var(--muted); }
+  .msg { color: var(--gold); max-width: 640px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 0 16px max(14px, env(safe-area-inset-bottom)); display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  button { font: inherit; color: var(--ink); background: rgba(16,32,28,.86); border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; cursor: pointer; }
+  button:hover { border-color: var(--gold); }
+  #enter { background: #c9a227; color: #10201c; border-color: #c9a227; font-weight: 650; }
+  .sp { flex: 1; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="top"><span class="brand"><i></i>Girih XR</span><span class="lvl"></span><span>·</span><span class="left"></span></div>
+  <div class="msg"></div>
+  <div class="sub"></div>
+</div>
+<div class="bar">
+  <button id="rotL" aria-label="Rotate left">⟲</button>
+  <button id="rotR" aria-label="Rotate right">⟳</button>
+  <button id="enter">Enter VR</button>
+  <button id="lang">Shqip</button>
+  <button id="restart">Restart</button>
+</div>
+<script type="module" src="./app.js"></script>
+</body>
+</html>
