@@ -1,5 +1,5 @@
 // node test/quasi.test.mjs — the physics and geometry the Quasicrystal Lab claims.
-import { pentagrid, gammas, flips, hankin, samples, diffraction, intensity, similarity, MISSIONS, SOLVED } from '../quasi.js';
+import { pentagrid, gammas, flips, hankin, samples, diffraction, intensity, similarity, MISSIONS, SOLVED, fingerprint } from '../quasi.js';
 let fail = 0;
 const ok = (c, m) => { console.log((c ? '✓ ' : '✗ ') + m); if (!c) fail = 1; };
 const near = (a, b, e = 1e-9) => Math.abs(a - b) < e;
@@ -26,13 +26,13 @@ const f = flips(T, moved);
 ok(f.length > 0 && f.length < moved.length / 2, `phason shift: ${f.length} of ${moved.length} rhombs flip, the rest stay`);
 ok(moved.every(({ v }) => v.every((a, i) => near(Math.hypot(v[(i + 1) % 4][0] - a[0], v[(i + 1) % 4][1] - a[1]), 1))), 'after the shift it is still a unit-edge rhomb tiling');
 
-const seg = hankin(T, 54 * DEG);
-ok(seg.length > 4 * T.length, `Hankin at 54°: ${seg.length} strapwork segments`);
+const seg = hankin(T, 45 * DEG);
+ok(seg.length > 4 * T.length, `Hankin at 45°: ${seg.length} strapwork segments`);
 ok(seg.every(([a, b]) => T.some(t => inside(t, [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]))), 'every strap lies inside a tile');
 
 // Diffraction: a sharp Bragg peak repeats every 36° round the centre (tenfold symmetry, which no periodic crystal
 // can have); 18° off it there is almost nothing.
-const pts = samples(hankin(pentagrid(9), 54 * DEG));
+const pts = samples(hankin(pentagrid(9), 45 * DEG));
 let best = [0, 0, 0];
 for (let r = 0.4; r < 2.2; r += 0.01) for (let a = 0; a < 36; a += 0.5) {
   const I = intensity(pts, r * Math.cos(a * DEG), r * Math.sin(a * DEG), 5); if (I > best[2]) best = [r, a, I];
@@ -46,9 +46,11 @@ ok(d0.length === 41 * 41 && d0.every(x => x >= 0 && x <= 1), 'diffraction image 
 
 // Missions: the target scores 1 against itself, the start is far enough away to be a puzzle.
 for (const [i, m] of MISSIONS.entries()) {
-  const P = samples(hankin(pentagrid(9), m.theta)), Q = samples(hankin(pentagrid(9), m.start.theta));
-  const tgt = diffraction(P, 33, 2.2, m.phi, 5), st = diffraction(Q, 33, 2.2, m.start.phi, 5);
-  const s = similarity(tgt, st);
-  ok(s < SOLVED - 0.05, `mission ${i + 1}: start similarity ${s.toFixed(3)} < ${SOLVED}`);
+  const tgt = fingerprint(m.theta, m.phi);
+  ok(similarity(tgt, fingerprint(m.theta, m.phi)) > 0.9999, `mission ${i + 1}: the answer scores 1`);
+  const s = similarity(tgt, fingerprint(m.start.theta, m.start.phi));
+  ok(s < (m.need ?? SOLVED) - 0.03, `mission ${i + 1}: start scores ${s.toFixed(3)}, well under ${m.need ?? SOLVED}`);
+  const nearby = similarity(tgt, fingerprint(m.theta + 1.5 * DEG, m.phi + 0.25 * DEG));
+  ok(nearby >= (m.need ?? SOLVED), `mission ${i + 1}: 1.5° and 0.25° off still counts (${nearby.toFixed(3)}), so hands can solve it`);
 }
 process.exit(fail);

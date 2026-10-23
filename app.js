@@ -8,11 +8,11 @@ const PINCH_ON = 0.018, PINCH_OFF = 0.035, GRAB = 0.06;
 const T = {
   en: { title: 'Girih XR', level: 'Pattern', of: 'of', left: 'tiles left', done: 'Pattern complete!', all: 'All patterns complete. MashaAllah — well done.',
         hint: 'Pinch a tile, turn your wrist to rotate it, release it in its place.', hintMouse: 'Drag a tile. Scroll or Q / E to rotate it.', hintTouch: 'Drag a tile. Turn it with ⟲ ⟳ while it is selected.',
-        enter: 'Enter VR', noxr: 'Hand tracking needs a VR headset; the mouse version works here.', paused: 'Paused', restart: 'Restart', lang: 'Shqip',
+        enter: 'Enter VR', noxr: 'Hand tracking needs a VR headset; the mouse version works here.', paused: 'Paused', restart: 'Restart', lang: 'Shqip', lab: 'Quasicrystal Lab',
         decoy: 'Not every tile belongs in every pattern.' },
   sq: { title: 'Girih XR', level: 'Modeli', of: 'nga', left: 'pllaka mbetur', done: 'Modeli u plotësua!', all: 'Të gjitha modelet u plotësuan. MashaAllah — të lumtë.',
         hint: 'Kape pllakën me dy gishta, rrotulloje me kyçin e dorës, lëshoje në vendin e saj.', hintMouse: 'Tërhiq një pllakë. Rrotullo me rrotën ose Q / E.', hintTouch: 'Tërhiq një pllakë. Rrotulloje me ⟲ ⟳.',
-        enter: 'Hyr në VR', noxr: 'Duart kërkojnë syze VR; versioni me mi punon këtu.', paused: 'Pauzë', restart: 'Rifillo', lang: 'English',
+        enter: 'Hyr në VR', noxr: 'Duart kërkojnë syze VR; versioni me mi punon këtu.', paused: 'Pauzë', restart: 'Rifillo', lang: 'English', lab: 'Laboratori i kuazikristalit',
         decoy: 'Jo çdo pllakë i takon çdo modeli.' },
 };
 
@@ -149,6 +149,7 @@ function ui() {
   document.getElementById('enter').textContent = t('enter');
   document.getElementById('lang').textContent = t('lang');
   document.getElementById('restart').textContent = t('restart');
+  document.getElementById('lab').textContent = t('lab');
   const c = canvas.getContext('2d');
   c.clearRect(0, 0, 1024, 320);
   c.fillStyle = 'rgba(12,28,24,0.82)'; c.beginPath(); c.roundRect(0, 0, 1024, 320, 36); c.fill();

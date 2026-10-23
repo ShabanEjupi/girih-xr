@@ -70,31 +70,33 @@ export function hankin(tiles, theta) {
   return seg;
 }
 
-// Scatterers for diffraction: points sampled evenly along the strapwork (what an X-ray would see if the lines were atoms).
-export function samples(seg, step = 0.25) {
+// Scatterers for diffraction: n points evenly along every strap (what an X-ray would see if the lines were rows of
+// atoms). A fixed count, not a fixed spacing, so the picture changes smoothly as the contact angle turns.
+export function samples(seg, n = 3) {
   const pts = [];
   for (const [a, b] of seg) {
-    const L = Math.hypot(b[0] - a[0], b[1] - a[1]), n = Math.max(1, Math.round(L / step));
     for (let i = 0; i < n; i++) pts.push([a[0] + (b[0] - a[0]) * (i + 0.5) / n, a[1] + (b[1] - a[1]) * (i + 0.5) / n]);
   }
   return pts;
 }
 
 // Diffraction intensity |sum exp(-2 pi i k.r)|^2 / N on a size x size grid of k in [-kmax, kmax]^2, the k-grid
-// turned by phi. A Gaussian window softens the patch's round edge so the peaks are clean. Log scale, 0..1.
-export function diffraction(pts, size, kmax, phi = 0, window = 0) {
+// turned by phi. A Gaussian window softens the patch's round edge so the peaks are clean. Scaled to 0..1, log scale
+// for the eye (weak peaks show), linear for scoring (peak heights count).
+export function diffraction(pts, size, kmax, phi = 0, window = 0, log = true) {
   const out = new Float32Array(size * size), cs = Math.cos(phi), sn = Math.sin(phi);
   const w = pts.map(([x, y]) => window ? Math.exp(-(x * x + y * y) / (2 * window * window)) : 1);
   const W = w.reduce((s, x) => s + x * x, 0) || 1;
   for (let iy = 0; iy < size; iy++) for (let ix = 0; ix < size; ix++) {
     const gx = (ix / (size - 1) * 2 - 1) * kmax, gy = (iy / (size - 1) * 2 - 1) * kmax;
+    if (gx * gx + gy * gy < 0.0625) continue;                           // the beam stop: k = 0 carries no structure
     const kx = TAU * (gx * cs - gy * sn), ky = TAU * (gx * sn + gy * cs);
     let re = 0, im = 0;
     for (let n = 0; n < pts.length; n++) { const a = kx * pts[n][0] + ky * pts[n][1]; re += w[n] * Math.cos(a); im -= w[n] * Math.sin(a); }
     out[iy * size + ix] = (re * re + im * im) / W;
   }
   let max = 0;
-  for (let i = 0; i < out.length; i++) { out[i] = Math.log1p(out[i]); if (i !== (size * size >> 1) && out[i] > max) max = out[i]; }
+  for (let i = 0; i < out.length; i++) { if (log) out[i] = Math.log1p(out[i]); if (out[i] > max) max = out[i]; }
   for (let i = 0; i < out.length; i++) out[i] = Math.min(1, out[i] / (max || 1));
   return out;
 }
@@ -120,8 +122,10 @@ export function similarity(a, b) {
 // The crystallographer's missions: a hidden contact angle and orientation; the player sees only their diffraction.
 const DEG = Math.PI / 180;
 export const MISSIONS = [
-  { theta: 54 * DEG, phi: 0 * DEG, free: ['phi'], start: { theta: 54 * DEG, phi: 17 * DEG } },
-  { theta: 72 * DEG, phi: 0 * DEG, free: ['theta'], start: { theta: 38 * DEG, phi: 0 } },
-  { theta: 36 * DEG, phi: 11 * DEG, free: ['theta', 'phi'], start: { theta: 64 * DEG, phi: 27 * DEG } },
+  { theta: 45 * DEG, phi: 0, free: ['phi'], start: { theta: 45 * DEG, phi: 17 * DEG } },
+  { theta: 63 * DEG, phi: 0, free: ['theta'], start: { theta: 28 * DEG, phi: 0 }, need: 0.99 },
+  { theta: 30 * DEG, phi: 11 * DEG, free: ['theta', 'phi'], start: { theta: 66 * DEG, phi: 27 * DEG } },
 ];
+// How the lab scores a guess: linear intensities (peak heights matter), 32 x 32, the same ideal patch for both.
+export const fingerprint = (theta, phi) => diffraction(samples(hankin(pentagrid(5), theta)), 32, 1.6, phi, 2.5, false);
 export const SOLVED = 0.97;

@@ -18,6 +18,17 @@ No controllers, no standing, no reading needed. Taking the headset off pauses th
 
 The same puzzle runs in any browser with a mouse or touch screen (drag, then scroll, Q / E or the ⟲ ⟳ buttons to rotate).
 
+## Quasicrystal Lab (`lab.html`)
+
+In 2007 Peter Lu and Paul Steinhardt showed in *Science* that girih patterns on 15th-century shrines are nearly perfect quasicrystals: ordered, yet never repeating, with a ten-fold symmetry that no ordinary crystal can have. The same order was found in real alloys by Dan Shechtman (Nobel Prize in Chemistry, 2011). The Lab lets you hold that physics in your hands:
+
+- **The tiling is a slice of a 5-dimensional lattice.** It is computed live with de Bruijn's pentagrid (the cut-and-project method). Pinch and drag with your right hand to slide the cut through the fifth dimension: rhombs flip (they glow gold), yet the tiling stays perfect and the thick : thin ratio stays the golden ratio.
+- **The girih lines are drawn with Hankin's polygons-in-contact method**: two rays from every edge midpoint at a contact angle θ. Raise or lower your left hand to bend them; twist it to turn the crystal (φ).
+- **The diffraction pattern is computed on the GPU every time the crystal changes** (|Σ e^(−2πi k·r)|² over thousands of scatterers, with a beam stop at the centre). It shows the sharp ten-fold Bragg peaks of a quasicrystal, and it barely changes when the cut slides: a phason shift moves the tiles, not the physics.
+- **Missions: solve a structure from its diffraction alone**, the way crystallographers solve real crystals. You see only a target diffraction pattern; turn and bend your crystal until its pattern matches (normalised cross-correlation, linear intensities).
+
+`quasi.js` is the engine (pure functions); `test/quasi.test.mjs` checks the claims: unit-edge rhombs with 36° and 72° angles, no gaps and no overlaps, the golden ratio, phason flips, every strap inside its tile, a Bragg peak that repeats every 36° and vanishes 18° off, and missions that are hard at the start but solvable by hand. `test/lab.mjs` (Playwright) solves all three missions on desktop and phone sizes.
+
 ## How it works
 
 - `girih.js`: the geometry. Tiles are built by a turtle walk from their interior angles, levels are made by attaching tiles edge to edge, and a separating-axis test checks that no two places overlap.
