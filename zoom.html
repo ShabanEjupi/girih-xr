@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Girih All the Way Down</title>
+<meta name="description" content="Girih XR: an endless dive into a Penrose tiling with girih strapwork on three levels at once, large girih holding smaller girih, in VR with your hands or in the browser.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 2l12 9-4.5 15h-15L4 11z' fill='%23c9a227'/%3E%3C/svg%3E">
+<style>
+  :root { --bg: #0b1412; --ink: #f4efe2; --muted: #a9b8b0; --gold: #d9c98f; --line: rgba(244,239,226,.18); }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; touch-action: none; }
+  canvas { display: block; }
+  #hud { position: fixed; inset: 0 0 auto 0; padding: max(12px, env(safe-area-inset-top)) 16px 0; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+  .brand { font-weight: 650; display: flex; align-items: center; gap: 8px; }
+  .brand i { width: 14px; height: 14px; background: #c9a227; transform: rotate(18deg); clip-path: polygon(50% 0, 100% 38%, 82% 100%, 18% 100%, 0 38%); }
+  #mag { color: var(--gold); font-variant-numeric: tabular-nums; }
+  #sub, #tip { color: var(--muted); font-size: 13px; max-width: 680px; }
+  @media (max-width: 560px) { #sub { display: none; } }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 0 16px max(14px, env(safe-area-inset-bottom)); display: flex; gap: 8px 14px; justify-content: center; align-items: center; flex-wrap: wrap; }
+  label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+  input[type=range] { width: 140px; accent-color: #c9a227; }
+  button, a.btn { font: inherit; color: var(--ink); background: rgba(16,32,28,.86); border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; cursor: pointer; text-decoration: none; }
+  button:hover, a.btn:hover { border-color: var(--gold); }
+  #enter { background: #c9a227; color: #10201c; border-color: #c9a227; font-weight: 650; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <span class="brand"><i></i><span id="title">Girih all the way down</span></span>
+  <span id="mag"></span>
+  <span id="sub"></span>
+  <span id="tip"></span>
+</div>
+<div class="bar">
+  <label>θ <input id="theta" type="range" min="20" max="80" step="0.5"></label>
+  <button id="dive">Dive</button>
+  <button id="enter">Enter VR</button>
+  <button id="lang">Shqip</button>
+  <a class="btn" id="back" href="./lab.html">Lab</a>
+</div>
+<script type="module" src="./zoom.js"></script>
+</body>
+</html>

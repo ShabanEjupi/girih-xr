@@ -1,5 +1,5 @@
 // node test/quasi.test.mjs — the physics and geometry the Quasicrystal Lab claims.
-import { pentagrid, gammas, flips, hankin, samples, diffraction, intensity, similarity, MISSIONS, SOLVED, fingerprint } from '../quasi.js';
+import { pentagrid, gammas, flips, hankin, samples, diffraction, intensity, similarity, MISSIONS, SOLVED, fingerprint, PHI, sun, deflate, dive, rhombs } from '../quasi.js';
 let fail = 0;
 const ok = (c, m) => { console.log((c ? '✓ ' : '✗ ') + m); if (!c) fail = 1; };
 const near = (a, b, e = 1e-9) => Math.abs(a - b) < e;
@@ -52,5 +52,26 @@ for (const [i, m] of MISSIONS.entries()) {
   ok(s < (m.need ?? SOLVED) - 0.03, `mission ${i + 1}: start scores ${s.toFixed(3)}, well under ${m.need ?? SOLVED}`);
   const nearby = similarity(tgt, fingerprint(m.theta + 1.5 * DEG, m.phi + 0.25 * DEG));
   ok(nearby >= (m.need ?? SOLVED), `mission ${i + 1}: 1.5° and 0.25° off still counts (${nearby.toFixed(3)}), so hands can solve it`);
+}
+
+// Infinite zoom: deflation is exact, and diving never lets coordinates or tile counts grow.
+{
+  let tr = sun(1);
+  for (let i = 0; i < 7; i++) tr = deflate(tr);
+  const R = rhombs(tr), thick = R.filter(r => r.thick).length, thin = R.length - thick;
+  ok(Math.abs(thick / thin - PHI) < 0.03, `7 deflations: ${thick} thick / ${thin} thin rhombs = ${(thick / thin).toFixed(4)} → φ = ${PHI.toFixed(4)}`);
+  const edge = ({ v }) => Math.hypot(v[1][0] - v[0][0], v[1][1] - v[0][1]), L = edge(R[0]);
+  ok(near(L, Math.pow(PHI, -7)) && R.every(({ v }) => v.every((a, i) => near(Math.hypot(v[(i + 1) % 4][0] - a[0], v[(i + 1) % 4][1] - a[1]), L))), `all ${R.length} rhombs share one edge, ${L.toFixed(6)} = φ^-7`);
+  const ang = ({ v }) => { const a = [v[1][0] - v[0][0], v[1][1] - v[0][1]], b = [v[3][0] - v[0][0], v[3][1] - v[0][1]];
+    return Math.acos((a[0] * b[0] + a[1] * b[1]) / Math.hypot(...a) / Math.hypot(...b)) / DEG; };
+  ok(R.every(r => (r.thick ? [72, 108] : [36, 144]).some(x => Math.abs(ang(r) - x) < 1e-6)), 'thin rhombs 36°/144°, thick 72°/108°');
+  // Dive 300 levels (φ^300 ≈ 10^62 times closer): a bounded number of tiles at bounded coordinates.
+  let d = sun(40); for (let i = 0; i < 6; i++) d = deflate(d);
+  let maxN = 0, maxC = 0;
+  for (let i = 0; i < 300; i++) { d = dive(d, 4); maxN = Math.max(maxN, d.length); for (const [, ...v] of d) for (const p of v) maxC = Math.max(maxC, Math.abs(p[0]), Math.abs(p[1])); }
+  const R2 = rhombs(d), R3 = rhombs(dive(d, 4));
+  ok(d.length > 50 && maxN < 4000 && maxC < 30, `300 levels deep: ${d.length} triangles in view (max ${maxN}), coordinates stay under ${maxC.toFixed(1)}`);
+  ok(R2.length > 20 && near(edge(R2[0]), edge(R3[0]), 1e-6), `each level is drawn at the same size (edge ${edge(R2[0]).toFixed(4)}): self-similar all the way down`);
+  ok(hankin(R2, 54 * DEG).length > R2.length * 4, 'girih strapwork on every level');
 }
 process.exit(fail);

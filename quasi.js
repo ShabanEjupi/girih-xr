@@ -129,3 +129,51 @@ export const MISSIONS = [
 // How the lab scores a guess: linear intensities (peak heights matter), 32 x 32, the same ideal patch for both.
 export const fingerprint = (theta, phi) => diffraction(samples(hankin(pentagrid(5), theta)), 32, 1.6, phi, 2.5, false);
 export const SOLVED = 0.97;
+
+// ---------- Infinite zoom: girih inside girih ----------
+// A Penrose tiling is self-similar: cut every rhomb into Robinson triangles, cut each triangle into smaller ones by
+// the golden ratio, and the pieces pair up into a Penrose tiling again, φ times finer (deflation). Drawing Hankin
+// strapwork on two consecutive levels at once gives large girih with small girih inside it, the two-level design
+// Lu & Steinhardt (Science 315, 2007) found on the Darb-i Imam shrine in Isfahan (1453).
+// A triangle is [kind, A, B, C]: kind 0 = acute (36° at A), kind 1 = obtuse (108° at A); partners share side BC.
+export const PHI = (1 + Math.sqrt(5)) / 2;
+export function sun(r = 1) {
+  const out = [];
+  for (let i = 0; i < 10; i++) {
+    let B = [r * Math.cos((2 * i - 1) * Math.PI / 10), r * Math.sin((2 * i - 1) * Math.PI / 10)];
+    let C = [r * Math.cos((2 * i + 1) * Math.PI / 10), r * Math.sin((2 * i + 1) * Math.PI / 10)];
+    if (i % 2) [B, C] = [C, B];                                          // mirror every other one
+    out.push([0, [0, 0], B, C]);
+  }
+  return out;
+}
+const lerp = (P, Q, s) => [P[0] + (Q[0] - P[0]) * s, P[1] + (Q[1] - P[1]) * s];
+export function deflate(tris) {
+  const out = [];
+  for (const [k, A, B, C] of tris) {
+    if (k === 0) { const P = lerp(A, B, 1 / PHI); out.push([0, C, P, B], [1, P, C, A]); }
+    else { const Q = lerp(B, A, 1 / PHI), R = lerp(B, C, 1 / PHI); out.push([1, R, C, A], [1, Q, R, B], [0, R, Q, A]); }
+  }
+  return out;
+}
+// One zoom step: deflate, blow everything up by φ about the origin and keep only what can still be seen (with a
+// margin). Coordinates never grow, so the dive has no floor: level 1000 costs what level 10 does.
+export function dive(tris, half, margin = 1.5) {
+  const lim = half * margin;
+  return deflate(tris).map(([k, ...v]) => [k, ...v.map(([x, y]) => [x * PHI, y * PHI])])
+    .filter(([, ...v]) => !(v.every(p => p[0] < -lim) || v.every(p => p[0] > lim) || v.every(p => p[1] < -lim) || v.every(p => p[1] > lim)));
+}
+// Partners → rhombs ({ v, thick } like pentagrid's, counter-clockwise). A triangle whose partner was culled is dropped.
+export function rhombs(tris) {
+  const key = ([k, , B, C]) => { const [p, q] = [B, C].map(([x, y]) => `${x.toFixed(6)},${y.toFixed(6)}`).sort(); return `${k}|${p}|${q}`; };
+  const open = new Map(), out = [];
+  for (const t of tris) {
+    const id = key(t), o = open.get(id);
+    if (!o) { open.set(id, t); continue; }
+    open.delete(id);
+    const v = [t[1], t[2], o[1], t[3]];
+    const area = (v[1][0] - v[0][0]) * (v[3][1] - v[0][1]) - (v[1][1] - v[0][1]) * (v[3][0] - v[0][0]);
+    out.push({ v: area < 0 ? v.reverse() : v, thick: t[0] === 1, c: [(t[1][0] + o[1][0]) / 2, (t[1][1] + o[1][1]) / 2] });
+  }
+  return out;
+}
