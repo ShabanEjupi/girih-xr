@@ -4,28 +4,34 @@
 // the dive has no floor. Pinch with two hands (or wheel, or two fingers) to zoom; pinch with one hand to steer.
 import * as THREE from './vendor/three.module.js';
 import { PHI, sun, deflate, dive, rhombs, hankin } from './quasi.js';
+import { mrSupported, requestMR, placer } from './mr.js';
 
 const DEG = Math.PI / 180, H = 4, S = 0.05, PINCH_ON = 0.018, PINCH_OFF = 0.035;
 const T = {
   en: { title: 'Girih all the way down', enter: 'Enter VR', lang: 'Shqip', back: 'Lab', dive: 'Dive', stop: 'Stop', level: 'Level', mag: 'magnified',
         sub: 'A Penrose tiling contains itself, φ times finer. Large girih with smaller girih inside: the two-level design Lu & Steinhardt found on the Darb-i Imam shrine (Isfahan, 1453). Here it has no floor: every level is rebuilt from the one above, so the dive can go on for ever.',
         mouse: 'Wheel or two fingers to zoom, drag to steer.', hands: 'Pinch with both hands and pull apart to zoom in. Pinch with one hand to steer.',
-        noxr: 'Hand tracking needs a VR headset; here it works with a mouse or touch.' },
+        noxr: 'Hand tracking needs a VR headset; here it works with a mouse or touch.',
+        mr: 'Pin to a wall', place: 'Look at a wall or a table, then pinch: the girih is pinned there.' },
   sq: { title: 'Girih pa fund', enter: 'Hyr në VR', lang: 'English', back: 'Laboratori', dive: 'Zhytu', stop: 'Ndal', level: 'Niveli', mag: 'zmadhim',
         sub: 'Pllakëzimi Penrose e përmban veten, φ herë më imët. Girih i madh me girih më të vogël brenda: dizajni me dy nivele që Lu & Steinhardt e gjetën te tyrbja Darb-i Imam (Isfahan, 1453). Këtu s\'ka fund: çdo nivel ndërtohet nga ai sipër, ndaj zhytja mund të vazhdojë pa mbarim.',
         mouse: 'Rrota ose dy gishta për zmadhim, tërhiq për drejtim.', hands: 'Kape me të dy duart dhe largoji për të zmadhuar. Kape me një dorë për drejtim.',
-        noxr: 'Duart kërkojnë syze VR; këtu punon me mi ose prekje.' },
+        noxr: 'Duart kërkojnë syze VR; këtu punon me mi ose prekje.',
+        mr: 'Ngule te muri', place: 'Shiko një mur ose tavolinë dhe kape me dy gishta: girih-u ngulet aty.' },
 };
 let lang = (() => { try { return JSON.parse(localStorage.getItem('girih-lab:lang')) || null; } catch { return null; } })() || ((navigator.language || '').startsWith('sq') ? 'sq' : 'en');
 const t = k => T[lang][k], $ = id => document.getElementById(id);
 
 // ---------- scene ----------
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });   // alpha: passthrough shows through in MR
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight); renderer.xr.enabled = true;
 document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0b1412);
 const camera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.01, 80);
-const board = new THREE.Group(); scene.add(board);
+// mount = where the work hangs in the room (identity on screen and in VR, the pinned surface in MR); board = the work itself.
+const mount = new THREE.Group(), board = new THREE.Group(); mount.add(board); scene.add(mount);
+const place = placer(scene, mount);
+let mr = false;
 const disc = new THREE.Mesh(new THREE.CircleGeometry(H * 1.04, 120), new THREE.MeshBasicMaterial({ color: 0x15231f }));
 disc.position.z = -0.02; board.add(disc);
 // Three strap layers (coarse, fine, finest) and the faint rhombs of the fine level.
@@ -89,14 +95,15 @@ function layout() {
   camera.position.set(0, 0, dist); camera.lookAt(0, 0, 0);
 }
 const vrLayout = () => { board.scale.setScalar(S); board.position.set(0, -0.3, -0.5); board.rotation.set(-Math.PI / 2 + 0.75, 0, rot); };
+const mrLayout = () => { board.scale.setScalar(S); board.position.set(0, 0, 0.004); board.rotation.set(0, 0, rot); };   // 4 mm off the surface
 function ui() {
   document.documentElement.lang = lang;
   $('title').textContent = t('title'); $('sub').textContent = t('sub');
   // φ^n written as a power of ten: past a few dozen levels no number on screen could hold it.
   const e = (level + Math.log(s) / Math.log(PHI)) * Math.log10(PHI), mant = 10 ** (e - Math.floor(e));
   $('mag').textContent = `${t('level')} ${level} · ${mant.toFixed(2)} × 10^${Math.floor(e)} ${t('mag')}`;
-  $('tip').textContent = renderer.xr.isPresenting ? t('hands') : t('mouse');
-  $('enter').textContent = t('enter'); $('lang').textContent = t('lang'); $('back').textContent = t('back'); $('dive').textContent = diving ? t('stop') : t('dive');
+  $('tip').textContent = !renderer.xr.isPresenting ? t('mouse') : mr && !place.pinned ? t('place') : t('hands');
+  $('enter').textContent = t('enter'); $('mr').textContent = t('mr'); $('lang').textContent = t('lang'); $('back').textContent = t('back'); $('dive').textContent = diving ? t('stop') : t('dive');
 }
 $('lang').onclick = () => { lang = lang === 'en' ? 'sq' : 'en'; try { localStorage.setItem('girih-lab:lang', JSON.stringify(lang)); } catch {} ui(); };
 $('dive').onclick = () => { diving = !diving; ui(); };
@@ -164,18 +171,33 @@ $('enter').onclick = async () => {
   vrLayout(); ui();
   session.addEventListener('end', () => { layout(); tips.flat().forEach(m => (m.visible = false)); ui(); });
 };
+$('mr').onclick = async () => {
+  const session = await requestMR();
+  renderer.xr.setReferenceSpaceType('local');
+  await renderer.xr.setSession(session);
+  mr = true; scene.background = null; mrLayout();
+  await place.start(session, () => { mount.position.set(0, -0.1, -0.6); }, ui);
+  ui();
+  session.addEventListener('end', () => {
+    mr = false; place.stop(); scene.background = new THREE.Color(0x0b1412);
+    layout(); tips.flat().forEach(m => (m.visible = false)); ui();
+  });
+};
+mrSupported().then(ok => { $('mr').hidden = !ok; });
 
 // ---------- loop ----------
 addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if (!renderer.xr.isPresenting) layout(); });
 let last = 0;
 renderer.setAnimationLoop((time, frame) => {
   const dt = Math.min(0.05, (time - last) / 1000 || 0); last = time;
-  if (frame) handFrame(frame, renderer.xr.getReferenceSpace());
+  if (frame && mr) place.frame(frame, renderer.xr.getReferenceSpace());
+  if (frame && (!mr || place.pinned)) handFrame(frame, renderer.xr.getReferenceSpace());
   // The dive: one level (×φ) every 2.5 s, turning slowly, so the eye follows the girih down.
   if (diving) { zoomAt(PHI ** (dt / 2.5)); rot += dt * 0.05; board.rotation.z = rot; }
   renderer.render(scene, camera);
 });
 $('theta').value = theta / DEG;
 prepare(); layout(); draw();
-window.zoom = { get level() { return level; }, get s() { return s; }, get layers() { return L3.map(m => m.geometry.getAttribute('position').count / 6); },
+window.zoom = { get level() { return level; }, get s() { return s; }, get mr() { return mr; }, get pinned() { return place.pinned; },
+                get facing() { const n = new THREE.Vector3(0, 0, 1).applyQuaternion(board.getWorldQuaternion(new THREE.Quaternion())), p = board.getWorldPosition(new THREE.Vector3()); return { at: p.toArray(), normal: n.toArray() }; }, get layers() { return L3.map(m => m.geometry.getAttribute('position').count / 6); },
                 zoomAt, steer, dive: on => { diving = on; ui(); } };
